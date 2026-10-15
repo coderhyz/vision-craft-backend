@@ -1,6 +1,6 @@
 # Vision-Craft 后端
 
-Vision-Craft 的后端服务，基于 Express + TypeScript 构建，负责用户认证、页面 Schema 持久化、AI 大屏生成和 RAG 知识问答。
+Vision-Craft 的后端服务，基于 Express + TypeScript 构建，负责用户认证、页面 Schema 持久化、AI 大屏生成。
 
 ## 技术栈
 
@@ -12,7 +12,7 @@ Vision-Craft 的后端服务，基于 Express + TypeScript 构建，负责用户
 | 数据库 | MongoDB + Mongoose | 用户和页面数据持久化 |
 | 身份认证 | JWT + bcryptjs | 登录鉴权和密码哈希 |
 | AI 编排 | LangChain + LangGraph | Agent、工具调用、会话记忆 |
-| 模型接入 | DeepSeek / OpenAI 兼容接口 | 需求分析、组件生成和 RAG 问答 |
+| 模型接入 | DeepSeek / OpenAI 兼容接口 | 需求分析和组件生成 |
 | 数据校验 | Zod | AI 工具参数与 Schema 输出校验 |
 | 联网搜索 | Exa | 为图片等生成内容提供搜索能力 |
 
@@ -31,24 +31,17 @@ backend/
 │   ├── routes/
 │   │   ├── auth.ts                 # 注册、登录
 │   │   ├── page.ts                 # 页面列表、保存、读取、删除
-│   │   └── ai.ts                   # AI Schema 生成和 RAG 问答
+│   │   └── ai.ts                   # AI Schema 生成
 │   ├── utils/
 │   │   └── response.ts             # 统一响应格式
 │   └── ai/
 │       ├── agents/
-│       │   ├── create-agent.ts     # Schema 生成 Agent
-│       │   └── rag-agent.ts        # RAG 问答模型
+│       │   └── create-agent.ts     # Schema 生成 Agent
 │       ├── pipelines/
-│       │   ├── create-pipeline.ts  # Schema 生成主流程
-│       │   └── rag-pipeline.ts     # 检索与回答主流程
+│       │   └── create-pipeline.ts  # Schema 生成主流程
 │       ├── tools/
 │       │   ├── component-tools.ts  # 组件创建和页面配置工具
 │       │   └── integration-tools.ts# 外部集成工具集合
-│       ├── knowledge/
-│       │   ├── docs/               # RAG 知识文档
-│       │   ├── indexer.ts           # 知识索引入口
-│       │   ├── loader.ts            # 文档加载
-│       │   └── store.ts             # 向量存储
 │       ├── prompt.ts                # 系统提示词、用户消息和组件清单
 │       ├── schema.ts                # AI 输出的 Zod Schema
 │       ├── cache.ts                 # 进程内短期缓存
@@ -132,8 +125,6 @@ GET http://localhost:3000/health
 | `DEEPSEEK_BASE_URL` | 可选 | DeepSeek/OpenAI 兼容接口地址 |
 | `DEEPSEEK_MODEL` | 可选 | Schema 生成使用的模型名 |
 | `DEEPSEEK_REASONING_EFFORT` | 可选 | `low`、`high` 或 `max` |
-| `DASHBOARD_API_KEY` | RAG 必需 | RAG 问答模型的 API Key |
-| `DASHBOARD_BASE_URL` | RAG 必需 | RAG 模型的 OpenAI 兼容接口地址 |
 | `EXASEARCH_API_KEY` | 联网搜索必需 | Exa 搜索 API Key |
 
 ## 应用启动流程
@@ -286,14 +277,6 @@ Authorization: Bearer <token>
 
 `step` 模式返回 `text/event-stream`，不是普通 JSON。
 
-### RAG 问答接口
-
-```text
-GET /api/ai/chat?question=...&sessionId=...&token=...
-```
-
-该接口会从 `src/ai/knowledge/docs/` 检索相关文档，然后流式返回回答和引用来源。
-
 ## JWT 鉴权
 
 [src/middleware/verifyToken.ts](./src/middleware/verifyToken.ts) 支持两种 Token 来源：
@@ -352,33 +335,6 @@ AI 路由接收请求
 
 `tool_result` 主要用于更新聊天界面中的工具步骤，`ai_chunk` 才是前端新增、更新组件或修改页面配置的数据来源。
 
-详细链路见 [../docs/15-create-pipeline返回与前端消费详解.md](../docs/15-create-pipeline返回与前端消费详解.md)。
-
-## RAG 知识库
-
-RAG 处理流程：
-
-```text
-加载知识文档
-  → 创建或读取向量索引
-  → 相似度检索前 4 个片段
-  → 将片段作为模型上下文
-  → 流式返回 text_chunk
-  → 返回 sources
-```
-
-知识文档位于：
-
-```text
-src/ai/knowledge/docs/
-```
-
-执行索引入口：
-
-```bash
-pnpm rag
-```
-
 ## 常用命令
 
 | 命令 | 作用 |
@@ -391,7 +347,6 @@ pnpm rag
 | `pnpm lint:fix` | 自动修复可修复的 ESLint 问题 |
 | `pnpm format` | 使用 Prettier 格式化源码 |
 | `pnpm format:check` | 检查源码格式 |
-| `pnpm rag` | 执行知识库索引入口 |
 
 ## 开发指南
 
@@ -431,9 +386,5 @@ pnpm rag
 - `Page.schema` 在 MongoDB 中是宽松 Object，普通保存接口暂未执行完整 PageDSL 运行时校验。
 
 ## 相关文档
-
-- [后端 AI 模块](../docs/03-后端AI模块.md)
-- [后端 AI 与前端 AIChatPanel 交互流程](../docs/14-后端AI模块与前端AIChatPanel交互流程.md)
-- [create-pipeline 返回与前端消费详解](../docs/15-create-pipeline返回与前端消费详解.md)
 - [页面 API](./docs/page-api.md)
 

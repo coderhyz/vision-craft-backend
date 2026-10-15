@@ -2,7 +2,6 @@ import express from "express";
 import type { Request, Response } from "express";
 import { nanoid } from "nanoid";
 import { generateSchema } from "../ai/pipelines/create-pipeline.ts";
-import { answerQuestion } from "../ai/pipelines/rag-pipeline.ts";
 import { ok, fail, RespCode, type RespCodeValue } from "../utils/response.ts";
 
 const router = express.Router();
@@ -217,69 +216,6 @@ router.post("/schema/generate", async (req: Request, res: Response) => {
 		console.error("[ai/schema/generate] error", err);
 		const message = err?.message || "生成失败，请稍后重试";
 		return fail(res, message, RespCode.SERVER_ERROR, 500);
-	}
-});
-
-// ===================== RAG 问答 =====================
-
-// RAG 问答统一使用 SSE，以便逐步返回检索和回答进度。
-router.get("/chat", async (req: Request, res: Response) => {
-	const question = req.query?.question as string | undefined;
-	const sessionId = (req.query?.sessionId as string) || nanoid();
-
-	if (!question) {
-		return fail(res, "question 不能为空", RespCode.VALIDATION, 400);
-	}
-
-	const abortController = new AbortController();
-	let closed = false;
-
-	res.setHeader("Content-Type", "text/event-stream");
-	res.setHeader("Cache-Control", "no-cache");
-	res.setHeader("Connection", "keep-alive");
-	res.flushHeaders?.();
-
-	const send = (event: string, data: unknown) => {
-		if (closed) return;
-		res.write(`event: ${event}\n`);
-		res.write(`data: ${JSON.stringify(data)}\n\n`);
-	};
-
-	const finish = () => {
-		if (closed) return;
-		closed = true;
-		res.end();
-	};
-
-	const closeHandler = () => {
-		// 浏览器断开后终止检索/生成链路，并安全关闭响应。
-		abortController.abort();
-		finish();
-	};
-	req.on("close", closeHandler);
-
-	send("start", { sessionId });
-
-	try {
-		await answerQuestion({
-			question,
-			sessionId,
-			abortSignal: abortController.signal,
-			onProgress: send,
-		});
-		send("end", { ok: true, sessionId });
-	} catch (err: any) {
-		if (err?.name === "AbortError") {
-			send("end", { ok: false, cancelled: true });
-		} else {
-			console.error("[ai/chat] error", err);
-			send("error", { message: err?.message || "回答失败，请稍后重试" });
-			send("end", { ok: false });
-		}
-	} finally {
-		// 清理连接监听器，避免请求结束后残留引用。
-		req.off("close", closeHandler);
-		finish();
 	}
 });
 

@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@langchain/classic':
-        specifier: ^1.0.24
-        version: 1.0.24(@langchain/core@1.1.4(openai@7.20.0(zod@3.25.76)))(openai@7.20.0(zod@3.25.76))
       '@langchain/community':
         specifier: ^1.1.22
         version: 1.1.22(@browserbasehq/sdk@2.7.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.58.2)(deepmerge@4.3.1)(dotenv@16.6.1)(openai@7.20.0(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.7.9)(@langchain/core@1.1.4(openai@7.20.0(zod@3.25.76)))(duck-duck-scrape@2.2.7)(ibm-cloud-sdk-core@5.4.8)(ignore@7.0.5)(jsonwebtoken@9.0.3)(mongodb@7.1.0)(openai@7.20.0(zod@3.25.76))(playwright@1.58.2)
@@ -26,15 +23,9 @@ importers:
       '@langchain/langgraph':
         specifier: ^1.2.1
         version: 1.2.1(@langchain/core@1.1.4(openai@7.20.0(zod@3.25.76)))(zod-to-json-schema@3.25.1(zod@3.25.76))(zod@3.25.76)
-      '@langchain/mongodb':
-        specifier: ^1.1.0
-        version: 1.1.0(@langchain/core@1.1.4(openai@7.20.0(zod@3.25.76)))
       '@langchain/openai':
         specifier: ^1.1.3
         version: 1.1.3(@langchain/core@1.1.4(openai@7.20.0(zod@3.25.76)))
-      '@langchain/textsplitters':
-        specifier: ^1.0.1
-        version: 1.0.1(@langchain/core@1.1.4(openai@7.20.0(zod@3.25.76)))
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
@@ -59,9 +50,6 @@ importers:
       langchain:
         specifier: 1.1.4
         version: 1.1.4(@langchain/core@1.1.4(openai@7.20.0(zod@3.25.76)))(openai@7.20.0(zod@3.25.76))(zod-to-json-schema@3.25.1(zod@3.25.76))
-      mongodb:
-        specifier: ^7.1.0
-        version: 7.1.0
       mongoose:
         specifier: ^8.12.1
         version: 8.20.2
@@ -793,12 +781,6 @@ packages:
     peerDependenciesMeta:
       zod-to-json-schema:
         optional: true
-
-  '@langchain/mongodb@1.1.0':
-    resolution: {integrity: sha512-oEshb4TekZVA05jpTIJdV6AEF1p4K4psg29JLTx7SuLXSSC3OYefDvbDf1W4MwK4bbiASqI5eE5qDfdz44U7jw==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      '@langchain/core': ^1.0.0
 
   '@langchain/openai@1.1.3':
     resolution: {integrity: sha512-p+xR+4HRms5Ozjf5miC6U2AYRyNVSTdO7AMBkMYs1Tp6DWHBd+mQ72H8Ogd2dKrPuS5UDJ5dbpI1fS+OrTbgQQ==}
@@ -2619,19 +2601,6 @@ snapshots:
     transitivePeerDependencies:
       - react
       - react-dom
-
-  '@langchain/mongodb@1.1.0(@langchain/core@1.1.4(openai@7.20.0(zod@3.25.76)))':
-    dependencies:
-      '@langchain/core': 1.1.4(openai@7.20.0(zod@3.25.76))
-      mongodb: 6.20.0
-    transitivePeerDependencies:
-      - '@aws-sdk/credential-providers'
-      - '@mongodb-js/zstd'
-      - gcp-metadata
-      - kerberos
-      - mongodb-client-encryption
-      - snappy
-      - socks
 
   '@langchain/openai@1.1.3(@langchain/core@1.1.4(openai@7.20.0(zod@3.25.76)))':
     dependencies:
