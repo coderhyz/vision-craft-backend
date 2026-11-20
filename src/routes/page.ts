@@ -141,5 +141,8 @@ router.delete("/:id", async (req: Request, res: Response) => {
 		return fail(res, "删除失败，请稍后重试", RespCode.SERVER_ERROR, 500);
 	}
 });
-
+// 创建发布大屏
+router.post("/:id/publish", async (req: Request, res: Response) => {
+	console.log("发布页面", req.body);
+})
 export default router;

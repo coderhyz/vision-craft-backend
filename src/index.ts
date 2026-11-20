@@ -10,9 +10,10 @@ const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/vision
 // 启动函数：连接数据库并启动服务
 async function bootstrap() {
 	try {
+		// 连接数据库
 		await mongoose.connect(MONGODB_URI);
 		console.log("[mongo] connected");
-
+		// 监听端口
 		app.listen(PORT, () => {
 			console.log(`[server] listening on http://localhost:${PORT}`);
 		});

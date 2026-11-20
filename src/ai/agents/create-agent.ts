@@ -9,7 +9,7 @@ import { buildSystemMessage } from "../prompt.ts";
 import dotenv from "dotenv";
 
 dotenv.config();
-
+// 记忆组件
 const checkpointer = new MemorySaver();
 const systemPrompt = buildSystemMessage();
 

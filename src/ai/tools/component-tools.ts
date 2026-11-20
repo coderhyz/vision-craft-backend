@@ -146,6 +146,7 @@ export const createTextTool = tool(
 				textAlign: input.textAlign,
 			},
 		};
+		// 对生成的组件进行 schema 校验，确保输出符合前端要求
 		return textComponentSchema.parse(node);
 	},
 	{

@@ -40,38 +40,44 @@ function parseGenerateParams(source: any): GenerateParams {
 	const pageId = source?.pageId || null;
 
 	let existingComponents: any[] = [];
+
 	try {
-		if (source?.existingComponents) {
-			// 查询参数中的组件列表以 JSON 字符串传输，进入流水线前还原为数组。
-			existingComponents = JSON.parse(source.existingComponents);
+		const raw = source?.existingComponents;
+
+		if (Array.isArray(raw)) {
+			// 新版 POST：直接传数组
+			existingComponents = raw;
+		} else if (typeof raw === "string" && raw.trim()) {
+			// 兼容旧版 GET：JSON 字符串
+			const parsed = JSON.parse(raw);
+
+			if (!Array.isArray(parsed)) {
+				throw new Error("existingComponents 不是数组");
+			}
+
+			existingComponents = parsed;
+		} else if (
+			raw !== undefined &&
+			raw !== null &&
+			raw !== ""
+		) {
+			throw new Error("existingComponents 格式错误");
 		}
 	} catch {
-		// 解析失败则忽略，使用空数组
-	}
-
-	if (!prompt) {
 		return {
 			ok: false,
-			message: "prompt 不能为空",
-			code: RespCode.VALIDATION,
-			status: 400,
-		};
-	}
-	if (!VALID_MODE.has(mode)) {
-		return {
-			ok: false,
-			message: "mode 不合法，应为 step/full",
+			message: "existingComponents 必须是数组或 JSON 数组字符串",
 			code: RespCode.VALIDATION,
 			status: 400,
 		};
 	}
 	return {
 		ok: true,
-		prompt, // 用户的提示词
-		mode, // 用户要求的生成模式
-		sessionId, // 会话 ID
-		pageId, // 页面 ID
-		existingComponents
+		prompt,
+		mode,
+		sessionId,
+		pageId,
+		existingComponents,
 	};
 }
 
@@ -87,68 +93,159 @@ interface SSEParams {
  * 以 SSE 方式执行 Schema 生成，并将流水线进度原样转发给客户端。
  * 客户端断开连接时会同步中止下游任务，避免无效计算继续占用资源。
  */
+
 async function handleGenerateSchemaSSE(
-	req: Request,
+	_req: Request,
 	res: Response,
-	{ prompt, mode, sessionId, pageId, existingComponents }: SSEParams
+	{
+		prompt,
+		mode,
+		sessionId,
+		pageId,
+		existingComponents,
+	}: SSEParams
 ) {
+	// 1. 控制本次 Agent 执行的取消
 	const abortController = new AbortController();
-	// 防止断连、异常和 finally 多条路径重复写入或关闭响应。
+
 	let closed = false;
 
-	// SSE 响应必须禁用缓存并保持长连接。
-	res.setHeader("Content-Type", "text/event-stream");
-	res.setHeader("Cache-Control", "no-cache");
+	// 2. SSE 响应头
+	res.status(200);
+	res.setHeader(
+		"Content-Type",
+		"text/event-stream; charset=utf-8"
+	);
+	res.setHeader(
+		"Cache-Control",
+		"no-cache, no-transform"
+	);
 	res.setHeader("Connection", "keep-alive");
+
+	// 避免 Nginx 缓冲整个流
+	res.setHeader("X-Accel-Buffering", "no");
+
+	// 尽早把响应头发送给客户端
 	res.flushHeaders?.();
-	// 定义一个 send 函数，统一格式化事件并写入响应流。
+
+	// 3. 统一发送 SSE 事件
 	const send = (event: string, data: unknown) => {
-		if (closed) return;
-		// 每个事件由 event/data 两行组成，空行表示本次事件结束。
-		res.write(`event: ${event}\n`);
-		res.write(`data: ${JSON.stringify(data)}\n\n`);
+		if (
+			closed ||
+			res.destroyed ||
+			res.writableEnded
+		) {
+			return;
+		}
+
+		res.write(
+			`event: ${event}\n` +
+			`data: ${JSON.stringify(data)}\n\n`
+		);
 	};
 
+	// 4. 检测客户端断开
+	const onDisconnect = () => {
+		if (closed || res.writableEnded) return;
+
+		closed = true;
+
+		// 将取消信号传递给 Agent Pipeline
+		abortController.abort();
+
+		console.log(
+			`[SSE] 客户端已断开：${sessionId}`
+		);
+	};
+
+	// 监听响应关闭，而非请求体读取结束
+	res.once("close", onDisconnect);
+
+	// 5. 结束 SSE 响应
 	const finish = () => {
 		if (closed) return;
+
 		closed = true;
-		// 结束响应前可选地发送一个空事件，确保客户端收到完整的 SSE 流。
-		res.end();
+
+		if (!res.destroyed && !res.writableEnded) {
+			res.end();
+		}
 	};
 
-	const closeHandler = () => {
-		// 将 HTTP 连接生命周期传递给 AI 流水线。
-		abortController.abort();
-		finish();
-	};
-	req.on("close", closeHandler);
-	// 在流水线开始前发送一个 start 事件，告知客户端生成已启动。
-	send("start", { mode, sessionId });
+	// 6. 心跳，避免长时间没有事件时连接空闲
+	const heartbeat = setInterval(() => {
+		if (
+			!closed &&
+			!res.destroyed &&
+			!res.writableEnded
+		) {
+			// SSE 注释事件，前端解析器会自动忽略
+			res.write(": ping\n\n");
+		}
+	}, 15000);
+
+	// 7. 通知前端生成开始
+	send("start", {
+		mode,
+		sessionId,
+	});
 
 	try {
+		// 8. 执行原有的 AI Schema Pipeline
 		await generateSchema({
 			userPrompt: prompt,
 			mode,
 			sessionId,
 			pageId,
 			existingComponents,
+
+			// 关键：把 AbortSignal 传给 Pipeline
 			abortSignal: abortController.signal,
+
+			// 原有 Pipeline 的事件直接写入 SSE
 			onProgress: send,
 		});
-		send("end", { ok: true, sessionId });
-	} catch (err: any) {
-		if (err?.name === "AbortError") {
-			send("end", { ok: false, cancelled: true });
+
+		// 9. 正常结束
+		if (!abortController.signal.aborted) {
+			send("end", {
+				ok: true,
+				sessionId,
+			});
+		}
+	} catch (error: unknown) {
+		const isAbort =
+			abortController.signal.aborted ||
+			(
+				error instanceof Error &&
+				error.name === "AbortError"
+			);
+
+		if (isAbort) {
+			send("end", {
+				ok: false,
+				cancelled: true,
+			});
 		} else {
-			send("error", { message: err?.message || "生成失败，请稍后重试" });
+			const message =
+				error instanceof Error
+					? error.message
+					: "生成失败，请稍后重试";
+
+			console.error("[SSE] AI 生成失败", error);
+
+			send("error", { message });
 			send("end", { ok: false });
 		}
 	} finally {
-		// 无论成功、失败还是取消，都移除监听器并确保响应只结束一次。
-		req.off("close", closeHandler);
+		// 10. 释放资源
+		clearInterval(heartbeat);
+		res.off("close", onDisconnect);
+
 		finish();
 	}
 }
+
 
 // GET 入口兼容通过查询参数发起生成的客户端。
 router.get("/schema/generate", async (req: Request, res: Response) => {
